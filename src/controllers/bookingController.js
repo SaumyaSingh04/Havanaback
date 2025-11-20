@@ -354,6 +354,37 @@ exports.updateBooking = async (req, res) => {
     const booking = await Booking.findById(bookingId);
     if (!booking) return res.status(404).json({ error: 'Booking not found' });
 
+    // Handle room changes if selectedRooms is provided
+    if (updates.selectedRooms && Array.isArray(updates.selectedRooms)) {
+      const oldRoomNumbers = booking.roomNumber ? booking.roomNumber.split(',').map(num => num.trim()) : [];
+      const newRoomNumbers = updates.selectedRooms.map(room => room.room_number);
+      
+      // Set old rooms to available
+      for (const roomNum of oldRoomNumbers) {
+        const room = await Room.findOne({ room_number: roomNum });
+        if (room) {
+          room.status = 'available';
+          await room.save();
+        }
+      }
+      
+      // Set new rooms to booked
+      for (const roomNum of newRoomNumbers) {
+        const room = await Room.findOne({ room_number: roomNum });
+        if (room) {
+          room.status = 'booked';
+          await room.save();
+        }
+      }
+      
+      // Update booking with new room numbers
+      booking.roomNumber = newRoomNumbers.join(',');
+      booking.numberOfRooms = newRoomNumbers.length;
+      
+      // Remove selectedRooms from updates to avoid saving it to booking
+      delete updates.selectedRooms;
+    }
+
     // Update allowed simple fields directly on booking document
     const simpleFields = [
       'salutation', 'name', 'age', 'gender', 'address', 'city', 'nationality',
