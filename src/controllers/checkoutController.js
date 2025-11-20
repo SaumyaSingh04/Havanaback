@@ -1,5 +1,6 @@
 const Checkout = require('../models/Checkout');
 const Booking = require('../models/Booking');
+const Room = require('../models/Room');
 const mongoose = require('mongoose');
 const { TAX_CONFIG, calculateTaxableAmount, calculateCGST, calculateSGST } = require('../utils/taxConfig');
 const fs = require('fs');
@@ -71,7 +72,7 @@ exports.updatePaymentStatus = async (req, res) => {
     const { id } = req.params;
     const { status, paidAmount } = req.body;
 
-    const checkout = await Checkout.findById(id);
+    const checkout = await Checkout.findById(id).populate('bookingId');
     if (!checkout) {
       return res.status(404).json({ message: 'Checkout not found' });
     }
@@ -79,6 +80,36 @@ exports.updatePaymentStatus = async (req, res) => {
     checkout.status = status;
     if (paidAmount !== undefined) {
       checkout.pendingAmount = Math.max(0, checkout.totalAmount - paidAmount);
+    }
+
+    // If payment is completed, update booking status and room availability
+    if (status === 'Completed' && checkout.bookingId) {
+      const booking = checkout.bookingId;
+      
+      // Update booking status to 'Checked Out'
+      booking.status = 'Checked Out';
+      booking.paymentStatus = 'Paid';
+      await booking.save();
+      
+      // Handle multiple room numbers (comma-separated)
+      if (booking.roomNumber && booking.roomNumber.trim()) {
+        const roomNumbers = booking.roomNumber.split(',').map(num => num.trim()).filter(num => num);
+        
+        for (const roomNum of roomNumbers) {
+          try {
+            const room = await Room.findOne({ room_number: roomNum });
+            if (room) {
+              room.status = 'available';
+              await room.save();
+              console.log(`Room ${roomNum} set to available`);
+            } else {
+              console.log(`Room ${roomNum} not found`);
+            }
+          } catch (roomError) {
+            console.error(`Error updating room ${roomNum}:`, roomError);
+          }
+        }
+      }
     }
 
     await checkout.save();
