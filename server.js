@@ -33,6 +33,7 @@ const allowedOrigins = [
   "https://havanabackend.vercel.app",
   "https://havana-f.vercel.app",
   "https://havana-f1.vercel.app",
+  "https://havanabackend-gray.vercel.app",
   
 ];
 
