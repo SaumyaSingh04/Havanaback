@@ -509,6 +509,10 @@ exports.updateBooking = async (req, res) => {
 
     simpleFields.forEach(field => {
       if (typeof updates[field] !== 'undefined') {
+        // Skip empty categoryId to prevent validation errors
+        if (field === 'categoryId' && (!updates[field] || updates[field] === '')) {
+          return;
+        }
         booking[field] = updates[field];
       }
     });
