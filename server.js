@@ -136,7 +136,9 @@ io.on('banquet-update', (data) => {
 });
 
 const PORT = process.env.PORT || 5000;
-if (process.env.NODE_ENV !== "production") {
+
+// Only start server in development
+if (process.env.NODE_ENV !== "production" && !process.env.VERCEL) {
   server.listen(PORT, () => console.log(`Server running on port ${PORT}`));
 }
 
