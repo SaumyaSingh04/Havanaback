@@ -21,6 +21,8 @@ router.delete("/unbook/:bookingId", auth, authorize('admin'), bookingController.
 router.delete("/delete/:bookingId", auth, authorize('admin'), bookingController.permanentlyDeleteBooking);
 router.put("/update/:bookingId", auth, bookingController.updateBooking);
 router.post("/extend/:bookingId", auth, bookingController.extendBooking);
+router.post("/amend/:bookingId", auth, bookingController.amendBookingStay);
+router.get("/conflicts/:bookingId", auth, bookingController.getConflictingBookings);
 router.post("/checkout/:bookingId", auth, bookingController.checkoutBooking);
 router.get("/history/all", auth, bookingController.getBookingHistory);
 

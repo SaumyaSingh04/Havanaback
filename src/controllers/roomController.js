@@ -205,8 +205,9 @@ exports.getAvailableRooms = async (req, res) => {
       });
     }
 
-    const checkIn = new Date(checkInDate);
-    const checkOut = new Date(checkOutDate);
+    // Parse dates and set to start/end of day for proper comparison
+    const checkIn = new Date(checkInDate + 'T00:00:00.000Z');
+    const checkOut = new Date(checkOutDate + 'T23:59:59.999Z')
 
     if (isNaN(checkIn.getTime()) || isNaN(checkOut.getTime())) {
       return res
@@ -217,29 +218,25 @@ exports.getAvailableRooms = async (req, res) => {
     // Step 1: Find overlapping bookings (rooms that are NOT available)
     const overlappingBookings = await Booking.find({
       isActive: true,
-      status: { $in: ['Booked', 'Checked In'] }, // Exclude 'Checked Out'
-      $or: [
-        {
-          checkInDate: { $lt: checkOut },
-          checkOutDate: { $gt: checkIn },
-        },
-      ],
+      status: { $in: ['Booked', 'Checked In'] },
+      checkInDate: { $lt: checkOut },
+      checkOutDate: { $gt: checkIn }
     });
+    
+
 
     // Step 2: Extract roomNumbers from those bookings (handle comma-separated room numbers)
     const bookedRoomNumbers = [];
     overlappingBookings.forEach(booking => {
       if (booking.roomNumber) {
-        // Split comma-separated room numbers and add each to the array
         const roomNums = booking.roomNumber.split(',').map(num => num.trim());
         bookedRoomNumbers.push(...roomNums);
       }
     });
 
-    // Step 3: Find rooms not in that list AND with status 'available'
+    // Step 3: Find rooms not in that list (ignore room status for future bookings)
     const availableRooms = await Room.find({
-      room_number: { $nin: bookedRoomNumbers },
-      status: 'available'
+      room_number: { $nin: bookedRoomNumbers }
     }).populate("categoryId", "name");
 
     // Step 4: Group by category
@@ -248,7 +245,7 @@ exports.getAvailableRooms = async (req, res) => {
     availableRooms.forEach((room) => {
       const catId = room.categoryId?._id?.toString() || "uncategorized";
       const catName = room.categoryId?.name || "Uncategorized";
-
+      
       if (!grouped[catId]) {
         grouped[catId] = {
           category: catId,
@@ -263,9 +260,10 @@ exports.getAvailableRooms = async (req, res) => {
         room_number: room.room_number,
         price: room.price,
         description: room.description,
-        status: room.status,
+        status: 'available', // Override status since room is available for requested dates
       });
     });
+
 
     return res.json({
       success: true,
@@ -277,4 +275,3 @@ exports.getAvailableRooms = async (req, res) => {
     return res.status(500).json({ success: false, message: err.message });
   }
 };
-
