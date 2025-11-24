@@ -67,8 +67,27 @@ exports.bookRoom = async (req, res) => {
       // Calculate tax amounts using dynamic rates
       let taxableAmount = extraDetails.rate || 0; // Input rate is the taxable amount
       
-      // Add extra bed charges if applicable
-      if (extraDetails.extraBed && extraDetails.extraBedCharge) {
+      // Add extra bed charges if applicable - calculate based on room rates
+      if (extraDetails.roomRates && Array.isArray(extraDetails.roomRates)) {
+        const extraBedCharges = extraDetails.roomRates.reduce((sum, roomRate) => {
+          if (!roomRate.extraBed) return sum;
+          
+          // Calculate extra bed days
+          const startDate = new Date(roomRate.extraBedStartDate || extraDetails.checkInDate);
+          const endDate = new Date(extraDetails.checkOutDate);
+          
+          // If start date is same or after checkout, no extra bed charge
+          if (startDate >= endDate) return sum;
+          
+          const timeDiff = endDate.getTime() - startDate.getTime();
+          const extraBedDays = Math.ceil(timeDiff / (1000 * 60 * 60 * 24));
+          
+          return sum + ((extraDetails.extraBedCharge || 0) * Math.max(0, extraBedDays));
+        }, 0);
+        
+        taxableAmount += extraBedCharges;
+      } else if (extraDetails.extraBed && extraDetails.extraBedCharge) {
+        // Fallback for old format
         taxableAmount += extraDetails.extraBedCharge;
       }
       
@@ -95,7 +114,8 @@ exports.bookRoom = async (req, res) => {
         roomRates = extraDetails.roomRates.map(rate => ({
           roomNumber: rate.roomNumber,
           customRate: rate.customRate || 0,
-          extraBed: Boolean(rate.extraBed)
+          extraBed: Boolean(rate.extraBed),
+          extraBedStartDate: rate.extraBedStartDate || null
         }));
       } else {
         // Fallback: create from room numbers and rate data
@@ -108,7 +128,8 @@ exports.bookRoom = async (req, res) => {
             return {
               roomNumber: roomNumber,
               customRate: ratePerRoom,
-              extraBed: roomData?.extra_bed || false
+              extraBed: roomData?.extra_bed || false,
+              extraBedStartDate: null
             };
           });
         }
