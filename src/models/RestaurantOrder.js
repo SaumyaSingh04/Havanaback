@@ -5,6 +5,10 @@ const restaurantOrderSchema = new mongoose.Schema({
     type: String,
     required: false,
   },
+  customerName: {
+    type: String,
+    required: false
+  },
   phoneNumber: {
     type: String,
     default: ''
