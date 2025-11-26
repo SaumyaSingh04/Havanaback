@@ -3,7 +3,27 @@ const RestaurantOrder = require('../models/RestaurantOrder.js');
 // Create new restaurant order
 exports.createOrder = async (req, res) => {
   try {
-    const order = new RestaurantOrder(req.body);
+    const orderData = req.body;
+    
+    // Try to link order to booking if tableNo matches a room number
+    if (orderData.tableNo) {
+      const Booking = require('../models/Booking');
+      const booking = await Booking.findOne({
+        roomNumber: { $regex: new RegExp(`(^|,)\\s*${orderData.tableNo}\\s*(,|$)`) },
+        status: { $in: ['Booked', 'Checked In'] },
+        isActive: true
+      });
+      
+      if (booking) {
+        orderData.bookingId = booking._id;
+        orderData.grcNo = booking.grcNo;
+        orderData.roomNumber = booking.roomNumber;
+        orderData.guestName = booking.name;
+        orderData.guestPhone = booking.mobileNo;
+      }
+    }
+    
+    const order = new RestaurantOrder(orderData);
     await order.save();
     res.status(201).json(order);
   } catch (error) {
@@ -48,6 +68,55 @@ exports.updateOrderStatus = async (req, res) => {
     }
     
     res.json(order);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+// Link existing restaurant orders to bookings
+exports.linkOrdersToBookings = async (req, res) => {
+  try {
+    const Booking = require('../models/Booking');
+    
+    // Get all restaurant orders without booking links
+    const unlinkedOrders = await RestaurantOrder.find({
+      $or: [
+        { bookingId: { $exists: false } },
+        { bookingId: null },
+        { grcNo: { $exists: false } },
+        { grcNo: null }
+      ]
+    });
+    
+    let linkedCount = 0;
+    
+    for (const order of unlinkedOrders) {
+      if (order.tableNo) {
+        const booking = await Booking.findOne({
+          roomNumber: { $regex: new RegExp(`(^|,)\\s*${order.tableNo}\\s*(,|$)`) },
+          status: { $in: ['Booked', 'Checked In'] },
+          isActive: true
+        });
+        
+        if (booking) {
+          await RestaurantOrder.findByIdAndUpdate(order._id, {
+            bookingId: booking._id,
+            grcNo: booking.grcNo,
+            roomNumber: booking.roomNumber,
+            guestName: booking.name,
+            guestPhone: booking.mobileNo
+          });
+          linkedCount++;
+        }
+      }
+    }
+    
+    res.json({
+      success: true,
+      message: `Linked ${linkedCount} restaurant orders to bookings`,
+      linkedCount,
+      totalUnlinked: unlinkedOrders.length
+    });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }

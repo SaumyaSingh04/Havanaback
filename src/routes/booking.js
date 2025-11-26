@@ -25,5 +25,7 @@ router.post("/amend/:bookingId", auth, bookingController.amendBookingStay);
 router.get("/conflicts/:bookingId", auth, bookingController.getConflictingBookings);
 router.post("/checkout/:bookingId", auth, bookingController.checkoutBooking);
 router.get("/history/all", auth, bookingController.getBookingHistory);
+router.get("/charges/booking/:bookingId", auth, bookingController.getBookingCharges);
+router.get("/charges/grc/:grcNo", auth, bookingController.getBookingCharges);
 
 module.exports = router;

@@ -1036,6 +1036,119 @@ exports.getConflictingBookings = async (req, res) => {
   }
 };
 
+// Get all charges and services for a booking
+exports.getBookingCharges = async (req, res) => {
+  try {
+    const { bookingId, grcNo } = req.params;
+    const RoomService = require('../models/RoomService');
+    const RestaurantOrder = require('../models/RestaurantOrder');
+    
+    let booking;
+    let serviceQuery = {};
+    let restaurantQuery = {};
+    
+    if (bookingId) {
+      booking = await Booking.findById(bookingId).populate('categoryId');
+      serviceQuery.bookingId = bookingId;
+      restaurantQuery.bookingId = bookingId;
+    } else if (grcNo) {
+      booking = await Booking.findOne({ grcNo }).populate('categoryId');
+      serviceQuery.grcNo = grcNo;
+      restaurantQuery.grcNo = grcNo;
+    } else {
+      return res.status(400).json({ error: 'Either bookingId or grcNo is required' });
+    }
+    
+    if (!booking) {
+      return res.status(404).json({ error: 'Booking not found' });
+    }
+    
+    // Get all room services for this booking
+    const roomServices = await RoomService.find(serviceQuery).sort({ createdAt: -1 });
+    
+    // Get all restaurant orders for this booking
+    // Try multiple query approaches since restaurant orders might not have grcNo/bookingId populated
+    const restaurantOrderQueries = [restaurantQuery];
+    
+    // Also search by room number if available
+    if (booking.roomNumber) {
+      const roomNumbers = booking.roomNumber.split(',').map(num => num.trim());
+      restaurantOrderQueries.push({ tableNo: { $in: roomNumbers } });
+    }
+    
+    console.log('Restaurant order queries:', JSON.stringify(restaurantOrderQueries, null, 2));
+    
+    const restaurantOrders = await RestaurantOrder.find({
+      $or: restaurantOrderQueries
+    }).sort({ createdAt: -1 });
+    
+    console.log('Found restaurant orders:', restaurantOrders.length);
+    console.log('Restaurant orders:', JSON.stringify(restaurantOrders, null, 2));
+    
+    // Calculate totals
+    const totalServiceCharges = roomServices.reduce((sum, service) => sum + (service.totalAmount || 0), 0);
+    const totalRestaurantCharges = restaurantOrders.reduce((sum, order) => sum + (order.amount || 0), 0);
+    
+    // Prepare response with booking details and all charges
+    const charges = {
+      booking: {
+        grcNo: booking.grcNo,
+        roomNumber: booking.roomNumber,
+        guestName: booking.name,
+        checkIn: booking.checkInDate,
+        checkOut: booking.checkOutDate,
+        days: booking.days,
+        categoryName: booking.categoryId?.name || 'Unknown'
+      },
+      roomCharges: {
+        taxableAmount: booking.taxableAmount || 0,
+        cgstAmount: booking.cgstAmount || 0,
+        sgstAmount: booking.sgstAmount || 0,
+        extraBedCharge: booking.extraBedCharge || 0,
+        totalRoomCharges: booking.rate || 0
+      },
+      services: roomServices.map(service => ({
+        type: 'service',
+        orderNumber: service.orderNumber,
+        serviceType: service.serviceType,
+        items: service.items,
+        subtotal: service.subtotal,
+        tax: service.tax,
+        serviceCharge: service.serviceCharge,
+        totalAmount: service.totalAmount,
+        status: service.status,
+        paymentStatus: service.paymentStatus,
+        createdAt: service.createdAt
+      })),
+      restaurantOrders: restaurantOrders.map(order => ({
+        type: 'restaurant',
+        orderId: order._id,
+        tableNo: order.tableNo,
+        items: order.items,
+        subtotal: order.subtotal,
+        sgstAmount: order.sgstAmount,
+        cgstAmount: order.cgstAmount,
+        totalGstAmount: order.totalGstAmount,
+        amount: order.amount,
+        discount: order.discount,
+        status: order.status,
+        paymentStatus: order.paymentStatus,
+        createdAt: order.createdAt
+      })),
+      summary: {
+        totalRoomCharges: booking.rate || 0,
+        totalServiceCharges,
+        totalRestaurantCharges,
+        grandTotal: (booking.rate || 0) + totalServiceCharges + totalRestaurantCharges
+      }
+    };
+    
+    res.json({ success: true, charges });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
 // Fix room availability - utility function to sync room status with booking status
 exports.fixRoomAvailability = async (req, res) => {
   try {
