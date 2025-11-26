@@ -157,9 +157,9 @@ exports.getInvoice = async (req, res) => {
     const currentDate = new Date();
     const billNo = `P${Date.now().toString().slice(-10)}`;
     
-    // Use booking's actual GST rates instead of hardcoded config
-    const bookingCgstRate = (booking?.cgstRate || 0.025); // Default to 2.5% if not set
-    const bookingSgstRate = (booking?.sgstRate || 0.025); // Default to 2.5% if not set
+    // Use booking's actual GST rates
+    const bookingCgstRate = booking?.cgstRate || 0;
+    const bookingSgstRate = booking?.sgstRate || 0;
     
     // Use booking's taxableAmount which includes extra bed charges
     const taxableAmount = booking?.taxableAmount || checkout.bookingCharges;
