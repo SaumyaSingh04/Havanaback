@@ -194,50 +194,48 @@ exports.getInvoice = async (req, res) => {
     
 
     
-    // Recalculate room service charges if they are 0
-    if (checkout.roomServiceCharges === 0) {
-      try {
-        const RestaurantOrder = require('../models/RestaurantOrder');
-        const booking = checkout.bookingId;
-        
-        // Split room numbers and check each one
-        const roomNumbers = booking.roomNumber ? booking.roomNumber.split(',').map(r => r.trim()) : [];
-        
-        // Use unpaid orders for calculation
-        const restaurantOrders = await RestaurantOrder.find({
-          tableNo: { $in: roomNumbers },
-          paymentStatus: { $ne: 'paid' }
-        });
-        
-        // Also check RoomService model for room service orders
-        const RoomService = require('../models/RoomService');
-        const roomServiceOrders = await RoomService.find({
-          roomNumber: { $in: roomNumbers },
-          paymentStatus: { $ne: 'paid' }
-        });
-        
-        const restaurantCharges = restaurantOrders.reduce((total, order) => {
-          return total + (order.amount || 0);
-        }, 0);
-        
-        const roomServiceCharges = roomServiceOrders.reduce((total, order) => {
-          return total + (order.totalAmount || 0);
-        }, 0);
-        
-        const calculatedRoomServiceCharges = restaurantCharges + roomServiceCharges;
-        
-        // Update checkout with calculated charges
-        if (calculatedRoomServiceCharges > 0) {
-          checkout.roomServiceCharges = calculatedRoomServiceCharges;
-          checkout.totalAmount = checkout.bookingCharges + calculatedRoomServiceCharges;
-          await checkout.save();
-          
-          // Update the in-memory object
-          checkout.roomServiceCharges = calculatedRoomServiceCharges;
-        }
-      } catch (error) {
-        // Error recalculating room service charges
+    // Always recalculate room service charges to get latest orders
+    try {
+      const RestaurantOrder = require('../models/RestaurantOrder');
+      const booking = checkout.bookingId;
+      
+      // Split room numbers and check each one
+      const roomNumbers = booking.roomNumber ? booking.roomNumber.split(',').map(r => r.trim()) : [];
+      
+      // Use unpaid orders for calculation
+      const restaurantOrders = await RestaurantOrder.find({
+        tableNo: { $in: roomNumbers },
+        paymentStatus: { $ne: 'paid' }
+      });
+      
+      // Also check RoomService model for room service orders
+      const RoomService = require('../models/RoomService');
+      const roomServiceOrders = await RoomService.find({
+        roomNumber: { $in: roomNumbers },
+        paymentStatus: { $ne: 'paid' }
+      });
+      
+      const restaurantCharges = restaurantOrders.reduce((total, order) => {
+        return total + (order.amount || 0);
+      }, 0);
+      
+      const roomServiceCharges = roomServiceOrders.reduce((total, order) => {
+        return total + (order.totalAmount || 0);
+      }, 0);
+      
+      const calculatedRoomServiceCharges = restaurantCharges + roomServiceCharges;
+      
+      // Always update checkout with latest calculated charges
+      if (calculatedRoomServiceCharges !== checkout.roomServiceCharges) {
+        checkout.roomServiceCharges = calculatedRoomServiceCharges;
+        checkout.totalAmount = checkout.bookingCharges + calculatedRoomServiceCharges;
+        await checkout.save();
       }
+      
+      // Update the in-memory object
+      checkout.roomServiceCharges = calculatedRoomServiceCharges;
+    } catch (error) {
+      // Error recalculating room service charges
     }
 
     const booking = checkout.bookingId;
@@ -378,13 +376,7 @@ exports.getInvoice = async (req, res) => {
       });
     }
 
-    // Add room service charges to other charges as well for visibility
-    if (checkout.roomServiceCharges > 0) {
-      invoice.otherCharges.push({
-        particulars: 'ROOM SERVICE',
-        amount: checkout.roomServiceCharges
-      });
-    }
+    // Room service charges are already included as line items, no need to add to other charges
 
     if (checkout.laundryCharges > 0) {
       invoice.otherCharges.push({
