@@ -41,6 +41,44 @@ const restaurantOrderSchema = new mongoose.Schema({
     type: String,
     default: ''
   },
+  subtotal: {
+    type: Number,
+    required: true,
+    min: 0
+  },
+  gstRate: {
+    type: Number,
+    default: 5,
+    min: 0,
+    max: 100
+  },
+  sgstRate: {
+    type: Number,
+    default: 2.5,
+    min: 0,
+    max: 50
+  },
+  cgstRate: {
+    type: Number,
+    default: 2.5,
+    min: 0,
+    max: 50
+  },
+  sgstAmount: {
+    type: Number,
+    default: 0,
+    min: 0
+  },
+  cgstAmount: {
+    type: Number,
+    default: 0,
+    min: 0
+  },
+  totalGstAmount: {
+    type: Number,
+    default: 0,
+    min: 0
+  },
   amount: {
     type: Number,
     required: true,
@@ -111,6 +149,17 @@ const restaurantOrderSchema = new mongoose.Schema({
   }
 }, {
   timestamps: true
+});
+
+// Pre-save middleware to calculate GST amounts
+restaurantOrderSchema.pre('save', function(next) {
+  if (this.isModified('subtotal') || this.isModified('sgstRate') || this.isModified('cgstRate')) {
+    this.sgstAmount = (this.subtotal * this.sgstRate) / 100;
+    this.cgstAmount = (this.subtotal * this.cgstRate) / 100;
+    this.totalGstAmount = this.sgstAmount + this.cgstAmount;
+    this.amount = this.subtotal + this.totalGstAmount - this.discount;
+  }
+  next();
 });
 
 // Index for efficient queries

@@ -142,7 +142,7 @@ exports.getInvoice = async (req, res) => {
     const checkout = await Checkout.findById(id)
       .populate({
         path: 'bookingId',
-        select: 'grcNo name roomNumber checkInDate checkOutDate mobileNo address city rate',
+        select: 'grcNo name roomNumber checkInDate checkOutDate mobileNo address city rate cgstRate sgstRate noOfAdults noOfChildren',
         populate: {
           path: 'categoryId',
           select: 'name'
@@ -157,9 +157,13 @@ exports.getInvoice = async (req, res) => {
     const currentDate = new Date();
     const billNo = `P${Date.now().toString().slice(-10)}`;
     
-    const taxableAmount = calculateTaxableAmount(checkout.bookingCharges);
-    const cgstAmount = calculateCGST(taxableAmount);
-    const sgstAmount = calculateSGST(taxableAmount);
+    // Use booking's actual GST rates instead of hardcoded config
+    const bookingCgstRate = (booking?.cgstRate || 0.025); // Default to 2.5% if not set
+    const bookingSgstRate = (booking?.sgstRate || 0.025); // Default to 2.5% if not set
+    
+    const taxableAmount = checkout.bookingCharges;
+    const cgstAmount = taxableAmount * bookingCgstRate;
+    const sgstAmount = taxableAmount * bookingSgstRate;
     
     const invoice = {
       invoiceDetails: {
@@ -189,7 +193,7 @@ exports.getInvoice = async (req, res) => {
           pax: booking?.noOfAdults || 2,
           declaredRate: booking?.rate || checkout.bookingCharges,
           hsn: 996311,
-          rate: TAX_CONFIG.DISPLAY_RATE,
+          rate: (bookingCgstRate + bookingSgstRate) * 100,
           cgstRate: cgstAmount,
           sgstRate: sgstAmount,
           amount: checkout.bookingCharges
@@ -197,7 +201,7 @@ exports.getInvoice = async (req, res) => {
       ],
       taxes: [
         {
-          taxRate: TAX_CONFIG.DISPLAY_RATE,
+          taxRate: (bookingCgstRate + bookingSgstRate) * 100,
           taxableAmount: taxableAmount,
           cgst: cgstAmount,
           sgst: sgstAmount,
