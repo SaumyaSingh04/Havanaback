@@ -13,13 +13,20 @@ const TAX_RATES = {
 // Upload base64 image to Cloudinary
 const uploadBase64ToCloudinary = async (base64String) => {
   try {
+    // Check if Cloudinary is properly configured
+    if (!process.env.CLOUDINARY_API_KEY || process.env.CLOUDINARY_API_KEY === 'your_api_key') {
+      console.warn('Cloudinary not configured, skipping image upload');
+      return base64String; // Return the base64 string as fallback
+    }
+    
     const result = await cloudinary.uploader.upload(base64String, {
       folder: 'havana-booking-media',
       transformation: [{ width: 800, height: 800, crop: 'limit' }]
     });
     return result.secure_url;
   } catch (error) {
-    throw new Error(`Image upload failed: ${error.message}`);
+    console.warn('Image upload failed, using base64 fallback:', error.message);
+    return base64String; // Return the base64 string as fallback
   }
 };
 
