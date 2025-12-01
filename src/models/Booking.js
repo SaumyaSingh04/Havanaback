@@ -77,6 +77,7 @@ const bookingSchema = new mongoose.Schema({
 
   discountPercent: { type: Number, default: 0 },
   discountRoomSource: { type: Number, default: 0 },
+  discountNotes: { type: String },
 
   paymentMode: { type: String },
   paymentStatus: { 
