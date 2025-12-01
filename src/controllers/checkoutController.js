@@ -18,40 +18,56 @@ exports.createCheckout = async (req, res) => {
       return res.status(404).json({ message: 'Booking not found' });
     }
 
-    // Get room service charges from restaurant orders
+    // Get restaurant charges and room service charges separately
+    let restaurantCharges = 0;
     let roomServiceCharges = 0;
+    
     try {
       const RestaurantOrder = require('../models/RestaurantOrder');
+      const RoomService = require('../models/RoomService');
       
       // Split room numbers and check each one
       const roomNumbers = booking.roomNumber ? booking.roomNumber.split(',').map(r => r.trim()) : [];
       
+      // Get restaurant orders (exclude cancelled orders)
       const restaurantOrders = await RestaurantOrder.find({
         tableNo: { $in: roomNumbers },
-        paymentStatus: { $ne: 'paid' }
+        paymentStatus: { $ne: 'paid' },
+        status: { $ne: 'cancelled' }
       });
       
-      roomServiceCharges = restaurantOrders.reduce((total, order) => {
+      restaurantCharges = restaurantOrders.reduce((total, order) => {
         return total + (order.amount || 0);
       }, 0);
+      
+      // Get room service orders
+      const roomServiceOrders = await RoomService.find({
+        roomNumber: { $in: roomNumbers },
+        paymentStatus: { $ne: 'paid' },
+        status: { $ne: 'cancelled' }
+      });
+      
+      roomServiceCharges = roomServiceOrders.reduce((total, order) => {
+        return total + (order.totalAmount || 0);
+      }, 0);
     } catch (error) {
-      // Error fetching room service charges
+      // Error fetching charges
     }
 
     // Calculate charges
-    const restaurantCharges = 0;
     const laundryCharges = 0;
     const inspectionCharges = 0;
     const bookingCharges = Number(booking.rate) || 0;
-    const totalAmount = bookingCharges + roomServiceCharges;
+    const totalAmount = bookingCharges + restaurantCharges + roomServiceCharges;
 
     // Check if checkout already exists for this booking
     let checkout = await Checkout.findOne({ bookingId });
     
     if (checkout) {
-      // Update existing checkout with new room service charges
+      // Update existing checkout with new charges
+      checkout.restaurantCharges = restaurantCharges;
       checkout.roomServiceCharges = roomServiceCharges;
-      checkout.totalAmount = checkout.bookingCharges + roomServiceCharges;
+      checkout.totalAmount = checkout.bookingCharges + restaurantCharges + roomServiceCharges;
       checkout.pendingAmount = checkout.totalAmount;
       await checkout.save();
     } else {
@@ -241,17 +257,19 @@ exports.getInvoice = async (req, res) => {
       // Split room numbers and check each one
       const roomNumbers = booking.roomNumber ? booking.roomNumber.split(',').map(r => r.trim()) : [];
       
-      // Use unpaid orders for calculation
+      // Use unpaid and non-cancelled orders for calculation
       const restaurantOrders = await RestaurantOrder.find({
         tableNo: { $in: roomNumbers },
-        paymentStatus: { $ne: 'paid' }
+        paymentStatus: { $ne: 'paid' },
+        status: { $ne: 'cancelled' }
       });
       
       // Also check RoomService model for room service orders
       const RoomService = require('../models/RoomService');
       const roomServiceOrders = await RoomService.find({
         roomNumber: { $in: roomNumbers },
-        paymentStatus: { $ne: 'paid' }
+        paymentStatus: { $ne: 'paid' },
+        status: { $ne: 'cancelled' }
       });
       
       const restaurantCharges = restaurantOrders.reduce((total, order) => {
@@ -262,17 +280,17 @@ exports.getInvoice = async (req, res) => {
         return total + (order.totalAmount || 0);
       }, 0);
       
-      const calculatedRoomServiceCharges = restaurantCharges + roomServiceCharges;
-      
       // Always update checkout with latest calculated charges
-      if (calculatedRoomServiceCharges !== checkout.roomServiceCharges) {
-        checkout.roomServiceCharges = calculatedRoomServiceCharges;
-        checkout.totalAmount = checkout.bookingCharges + calculatedRoomServiceCharges;
+      if (restaurantCharges !== checkout.restaurantCharges || roomServiceCharges !== checkout.roomServiceCharges) {
+        checkout.restaurantCharges = restaurantCharges;
+        checkout.roomServiceCharges = roomServiceCharges;
+        checkout.totalAmount = checkout.bookingCharges + restaurantCharges + roomServiceCharges;
         await checkout.save();
       }
       
       // Update the in-memory object
-      checkout.roomServiceCharges = calculatedRoomServiceCharges;
+      checkout.restaurantCharges = restaurantCharges;
+      checkout.roomServiceCharges = roomServiceCharges;
     } catch (error) {
       // Error recalculating room service charges
     }
@@ -294,10 +312,11 @@ exports.getInvoice = async (req, res) => {
     const bookingCgstRate = booking?.cgstRate || 0;
     const bookingSgstRate = booking?.sgstRate || 0;
     
-    // Calculate total taxable amount including room service charges
+    // Calculate total taxable amount including restaurant and room service charges
     const bookingTaxableAmount = booking?.taxableAmount || checkout.bookingCharges;
+    const restaurantAmount = checkout.restaurantCharges || 0;
     const roomServiceAmount = checkout.roomServiceCharges || 0;
-    const totalTaxableAmount = bookingTaxableAmount + roomServiceAmount;
+    const totalTaxableAmount = bookingTaxableAmount + restaurantAmount + roomServiceAmount;
     
 
     
@@ -346,7 +365,23 @@ exports.getInvoice = async (req, res) => {
           amount: roomRentAmount
         });
         
-        // Add room service charges as line items - force add if checkout has room service charges
+        // Add restaurant charges as line items
+        const restaurantAmount = checkout.restaurantCharges || 0;
+        if (restaurantAmount > 0) {
+          items.push({
+            date: booking?.checkInDate ? new Date(booking.checkInDate).toLocaleDateString('en-GB') : currentDate.toLocaleDateString('en-GB'),
+            particulars: `Restaurant Charges`,
+            pax: 1,
+            declaredRate: restaurantAmount,
+            hsn: 996311,
+            rate: (bookingCgstRate + bookingSgstRate) * 100,
+            cgstRate: restaurantAmount * bookingCgstRate,
+            sgstRate: restaurantAmount * bookingSgstRate,
+            amount: restaurantAmount
+          });
+        }
+        
+        // Add room service charges as line items
         const roomServiceAmount = checkout.roomServiceCharges || 0;
         if (roomServiceAmount > 0) {
           items.push({

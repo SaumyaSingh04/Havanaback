@@ -12,7 +12,7 @@ exports.getAllMenuItems = async (req, res) => {
     if (category) filter.category = category;
     
     const items = await MenuItem.find(filter).sort({ category: 1, name: 1 });
-    res.json({ success: true, data: items });
+    res.json({ success: true, menuItems: items, data: items });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }

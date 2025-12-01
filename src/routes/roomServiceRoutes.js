@@ -3,8 +3,8 @@ const router = express.Router();
 const roomServiceController = require('../controllers/roomServiceController');
 const { auth, authorize } = require('../middleware/auth');
 
-// Create room service order (Front Desk, Staff)
-router.post('/create', auth, authorize(['FRONT DESK', 'STAFF']), roomServiceController.createOrder);
+// Create room service order (All roles)
+router.post('/create', auth, authorize(['ADMIN', 'GM', 'ACCOUNTS', 'STAFF', 'FRONT DESK']), roomServiceController.createOrder);
 
 // Get all orders (All roles)
 router.get('/all', auth, authorize(['ADMIN', 'GM', 'ACCOUNTS', 'STAFF', 'FRONT DESK']), roomServiceController.getAllOrders);
@@ -12,8 +12,11 @@ router.get('/all', auth, authorize(['ADMIN', 'GM', 'ACCOUNTS', 'STAFF', 'FRONT D
 // Get order by ID (All roles)
 router.get('/:id', auth, authorize(['ADMIN', 'GM', 'ACCOUNTS', 'STAFF', 'FRONT DESK']), roomServiceController.getOrderById);
 
+// Update entire order
+router.put('/:id', auth, roomServiceController.updateOrder);
+
 // Update order status (Staff, Front Desk)
-router.patch('/:id/status', auth, authorize(['STAFF', 'FRONT DESK']), roomServiceController.updateOrderStatus);
+router.patch('/:id/status', auth, roomServiceController.updateOrderStatus);
 
 // Update payment status (Accounts, Admin)
 router.patch('/:id/payment', auth, authorize(['ACCOUNTS', 'ADMIN']), roomServiceController.updatePaymentStatus);

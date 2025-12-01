@@ -19,13 +19,13 @@ const roomServiceSchema = new mongoose.Schema({
     type: String,
     required: true
   },
-  grcNo: {
+
+  bookingNo: {
     type: String
   },
   bookingId: {
     type: mongoose.Schema.Types.ObjectId,
-    ref: 'Booking',
-    required: true
+    ref: 'Booking'
   },
   items: [{
     itemName: {
@@ -124,7 +124,8 @@ const roomServiceSchema = new mongoose.Schema({
 // Index for efficient queries
 roomServiceSchema.index({ bookingId: 1, roomNumber: 1 });
 roomServiceSchema.index({ bookingId: 1 });
-roomServiceSchema.index({ grcNo: 1 });
+
+roomServiceSchema.index({ bookingNo: 1 });
 roomServiceSchema.index({ status: 1 });
 roomServiceSchema.index({ paymentStatus: 1 });
 roomServiceSchema.index({ serviceType: 1 });

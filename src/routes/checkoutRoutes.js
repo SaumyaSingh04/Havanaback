@@ -3,8 +3,8 @@ const router = express.Router();
 const checkoutController = require('../controllers/checkoutController');
 const { auth, authorize } = require('../middleware/auth');
 
-// Create checkout (Front Desk, Accounts)
-router.post('/create', auth, authorize(['FRONT DESK', 'ACCOUNTS']), checkoutController.createCheckout);
+// Create checkout (Admin, Front Desk, Accounts)
+router.post('/create', auth, authorize(['ADMIN', 'FRONT DESK', 'ACCOUNTS']), checkoutController.createCheckout);
 
 // Get checkout by booking ID (Front Desk, Accounts, Admin)
 router.get('/booking/:bookingId', auth, authorize(['FRONT DESK', 'ACCOUNTS', 'ADMIN']), checkoutController.getCheckout);

@@ -1,15 +1,16 @@
 const express = require('express');
 const router = express.Router();
 const invoiceController = require('../controllers/invoiceController');
+const { auth, authorize } = require('../middleware/auth');
 
-// Generate next invoice number
-router.get('/next-invoice-number', invoiceController.getNextInvoiceNumber);
+// Generate next invoice number (Front Desk, Staff, Admin)
+router.get('/next-invoice-number', auth, authorize(['ADMIN', 'FRONT DESK', 'STAFF']), invoiceController.getNextInvoiceNumber);
 
 // Reset invoice counter for current month (admin only)
-router.post('/reset-counter', invoiceController.resetInvoiceCounter);
+router.post('/reset-counter', auth, authorize('ADMIN'), invoiceController.resetInvoiceCounter);
 
-// Generate invoice number for booking submission
-router.post('/generate-for-booking', async (req, res) => {
+// Generate invoice number for booking submission (Front Desk, Staff, Admin)
+router.post('/generate-for-booking', auth, authorize(['ADMIN', 'FRONT DESK', 'STAFF']), async (req, res) => {
   try {
     const { format = 'monthly' } = req.body;
     const invoiceNumber = await invoiceController.generateInvoiceNumber(format);
@@ -19,7 +20,7 @@ router.post('/generate-for-booking', async (req, res) => {
   }
 });
 
-// Set invoice counter to specific number
-router.post('/set-counter', invoiceController.setInvoiceCounter);
+// Set invoice counter to specific number (Admin only)
+router.post('/set-counter', auth, authorize('ADMIN'), invoiceController.setInvoiceCounter);
 
 module.exports = router;

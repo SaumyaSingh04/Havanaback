@@ -9,10 +9,11 @@ try {
 // Create room service order (integrates with restaurant orders)
 exports.createOrder = async (req, res) => {
   try {
-    const { serviceType, roomNumber, guestName, grcNo, bookingId, items, notes } = req.body;
+    console.log('Room service order request:', req.body);
+    const { serviceType, roomNumber, guestName, bookingNo, bookingId, items, notes } = req.body;
     
-    if (!roomNumber || !bookingId || !serviceType || !items || items.length === 0) {
-      return res.status(400).json({ message: "Missing required fields: roomNumber, bookingId, serviceType, and items are required" });
+    if (!roomNumber || !serviceType || !items || items.length === 0) {
+      return res.status(400).json({ message: "Missing required fields: roomNumber, serviceType, and items are required" });
     }
 
     const orderCount = await RoomService.countDocuments();
@@ -34,13 +35,11 @@ exports.createOrder = async (req, res) => {
 
     const totalAmount = subtotal;
 
-    const order = new RoomService({
+    const orderData = {
       orderNumber,
       serviceType,
       roomNumber,
       guestName: guestName || 'Guest',
-      grcNo,
-      bookingId,
       items: processedItems,
       subtotal,
       tax: 0,
@@ -50,7 +49,12 @@ exports.createOrder = async (req, res) => {
       kotNumber: `KOT-${Date.now()}`,
       kotGeneratedAt: new Date(),
       notes: notes || ''
-    });
+    };
+    
+    if (bookingNo) orderData.bookingNo = bookingNo;
+    if (bookingId) orderData.bookingId = bookingId;
+    
+    const order = new RoomService(orderData);
 
     await order.save();
     res.status(201).json({ success: true, message: 'Room service order created successfully', order });
@@ -63,19 +67,17 @@ exports.createOrder = async (req, res) => {
 // Get all orders (combines restaurant and room service orders)
 exports.getAllOrders = async (req, res) => {
   try {
-    const { status, bookingId, serviceType, grcNo, page = 1, limit = 20 } = req.query;
+    const { status, bookingId, serviceType, bookingNo, page = 1, limit = 20 } = req.query;
     
     // Get restaurant orders (room service)
     let restaurantOrders = [];
     if (RestaurantOrder) {
-      let restaurantFilter = {};
-      if (grcNo) restaurantFilter.grcNo = grcNo;
+      let restaurantFilter = {
+        tableNo: { $regex: '^R' }
+      };
       if (status) restaurantFilter.status = status;
       
-      restaurantOrders = await RestaurantOrder.find({
-        ...restaurantFilter,
-        tableNo: { $regex: '^R' }
-      }).sort({ createdAt: -1 });
+      restaurantOrders = await RestaurantOrder.find(restaurantFilter).sort({ createdAt: -1 });
     }
     
     // Get room service orders (non-restaurant)
@@ -83,11 +85,11 @@ exports.getAllOrders = async (req, res) => {
     if (status) roomServiceFilter.status = status;
     if (bookingId) roomServiceFilter.bookingId = bookingId;
     if (serviceType && serviceType !== 'Restaurant') roomServiceFilter.serviceType = serviceType;
-    if (grcNo) roomServiceFilter.grcNo = grcNo;
+    if (bookingNo) roomServiceFilter.bookingNo = bookingNo;
 
     const roomServiceOrders = await RoomService.find(roomServiceFilter)
       .populate("createdBy", "username")
-      .populate("bookingId", "name grcNo")
+      .populate("bookingId", "name")
       .sort({ createdAt: -1 });
 
     // Combine and format orders
@@ -128,7 +130,7 @@ exports.getOrderById = async (req, res) => {
   try {
     let order = await RoomService.findById(req.params.id)
       .populate("createdBy", "username")
-      .populate("bookingId", "name grcNo phoneNumber");
+      .populate("bookingId", "name phoneNumber");
 
     if (!order && RestaurantOrder) {
       order = await RestaurantOrder.findById(req.params.id);
@@ -148,6 +150,34 @@ exports.getOrderById = async (req, res) => {
 
     res.json({ success: true, order });
   } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// Update entire order
+exports.updateOrder = async (req, res) => {
+  try {
+    console.log('Update order request:', req.body);
+    const { items, subtotal, totalAmount } = req.body;
+    const order = await RoomService.findById(req.params.id);
+
+    if (!order) {
+      return res.status(404).json({ message: "Order not found" });
+    }
+
+    if (order.status === 'delivered' || order.status === 'cancelled') {
+      return res.status(400).json({ message: "Cannot edit delivered or cancelled orders" });
+    }
+
+    order.items = items;
+    order.subtotal = subtotal;
+    order.totalAmount = totalAmount;
+    
+    const savedOrder = await order.save();
+    console.log('Order updated successfully:', savedOrder._id);
+    res.json({ success: true, order: savedOrder });
+  } catch (error) {
+    console.error('Update order error:', error);
     res.status(500).json({ message: error.message });
   }
 };
@@ -263,39 +293,21 @@ exports.generateBill = async (req, res) => {
 // Bill lookup (searches both restaurant and room service orders)
 exports.billLookup = async (req, res) => {
   try {
-    const { billNumber, orderNumber, bookingId, grcNo } = req.query;
+    const { billNumber, orderNumber, bookingId, bookingNo } = req.query;
 
     let orders = [];
-
-    // Search restaurant orders (room service)
-    if (RestaurantOrder && grcNo) {
-      let restaurantFilter = {};
-      if (grcNo) restaurantFilter.grcNo = grcNo;
-      
-      const restaurantOrders = await RestaurantOrder.find({
-        ...restaurantFilter,
-        tableNo: { $regex: '^R' }
-      }).sort({ createdAt: -1 });
-      
-      orders.push(...restaurantOrders.map(order => ({
-        ...order.toObject(),
-        serviceType: 'Restaurant',
-        orderNumber: order._id.toString().slice(-6),
-        totalAmount: Math.round(order.amount * 1.28)
-      })));
-    }
 
     // Search room service orders
     let roomServiceFilter = {};
     if (billNumber) roomServiceFilter.billNumber = billNumber;
     if (orderNumber) roomServiceFilter.orderNumber = orderNumber;
     if (bookingId) roomServiceFilter.bookingId = bookingId;
-    if (grcNo) roomServiceFilter.grcNo = grcNo;
+    if (bookingNo) roomServiceFilter.bookingNo = bookingNo;
 
     if (Object.keys(roomServiceFilter).length > 0) {
       const roomServiceOrders = await RoomService.find(roomServiceFilter)
         .populate("createdBy", "username")
-        .populate("bookingId", "name grcNo phoneNumber")
+        .populate("bookingId", "name phoneNumber")
         .sort({ createdAt: -1 });
       
       orders.push(...roomServiceOrders.map(order => order.toObject()));
@@ -317,10 +329,10 @@ exports.billLookup = async (req, res) => {
 // Get room service charges for checkout
 exports.getRoomServiceCharges = async (req, res) => {
   try {
-    const { bookingId, grcNo } = req.query;
+    const { bookingId } = req.query;
     
-    if (!bookingId && !grcNo) {
-      return res.status(400).json({ message: "Booking ID or GRC number is required" });
+    if (!bookingId) {
+      return res.status(400).json({ message: "Booking ID is required" });
     }
 
     let orders = [];
@@ -328,14 +340,9 @@ exports.getRoomServiceCharges = async (req, res) => {
 
     // Get room service orders
     let roomServiceFilter = {
-      paymentStatus: { $ne: 'paid' }
+      paymentStatus: { $ne: 'paid' },
+      bookingId: bookingId
     };
-    
-    if (bookingId) {
-      roomServiceFilter.bookingId = bookingId;
-    } else if (grcNo) {
-      roomServiceFilter.grcNo = grcNo;
-    }
 
     const roomServiceOrders = await RoomService.find(roomServiceFilter)
       .select('orderNumber serviceType totalAmount items createdAt roomNumber guestName')
@@ -368,10 +375,10 @@ exports.getRoomServiceCharges = async (req, res) => {
 // Mark room service orders as paid (includes both restaurant and room service)
 exports.markOrdersPaid = async (req, res) => {
   try {
-    const { bookingId, grcNo } = req.body;
+    const { bookingId } = req.body;
     
-    if (!bookingId && !grcNo) {
-      return res.status(400).json({ message: "Booking ID or GRC number is required" });
+    if (!bookingId) {
+      return res.status(400).json({ message: "Booking ID is required" });
     }
 
     // Mark restaurant orders as paid
@@ -379,11 +386,9 @@ exports.markOrdersPaid = async (req, res) => {
       let restaurantFilter = {
         tableNo: { $regex: '^R' },
         status: { $in: ['served', 'delivered'] },
-        paymentStatus: { $ne: 'paid' }
+        paymentStatus: { $ne: 'paid' },
+        bookingId: bookingId
       };
-      
-      if (bookingId) restaurantFilter.bookingId = bookingId;
-      if (grcNo) restaurantFilter.grcNo = grcNo;
 
       await RestaurantOrder.updateMany(restaurantFilter, {
         paymentStatus: 'paid',
@@ -394,14 +399,9 @@ exports.markOrdersPaid = async (req, res) => {
     // Mark room service orders as paid
     let roomServiceFilter = {
       status: "delivered",
-      paymentStatus: "unpaid"
+      paymentStatus: "unpaid",
+      bookingId: bookingId
     };
-    
-    if (bookingId) {
-      roomServiceFilter.bookingId = bookingId;
-    } else if (grcNo) {
-      roomServiceFilter.grcNo = grcNo;
-    }
 
     await RoomService.updateMany(roomServiceFilter, {
       paymentStatus: "paid"
