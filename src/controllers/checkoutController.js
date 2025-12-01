@@ -341,27 +341,22 @@ exports.getInvoice = async (req, res) => {
     // Always recalculate room service charges to get latest orders
     try {
       const RestaurantOrder = require('../models/RestaurantOrder');
+      const RoomService = require('../models/RoomService');
       const booking = checkout.bookingId;
       
       // Split room numbers and check each one
       const roomNumbers = booking.roomNumber ? booking.roomNumber.split(',').map(r => r.trim()) : [];
       
-      // Use unpaid and non-cancelled orders for calculation
+      // Get orders for this specific booking only
       const restaurantOrders = await RestaurantOrder.find({
-        $or: [
-          { tableNo: { $in: roomNumbers } },
-          { bookingId: booking._id }
-        ],
-        paymentStatus: { $ne: 'paid' },
+        bookingId: booking._id,
         status: { $nin: ['cancelled', 'canceled'] }
       });
       
       // Also check RoomService model for room service orders
-      const RoomService = require('../models/RoomService');
       const roomServiceOrders = await RoomService.find({
-        roomNumber: { $in: roomNumbers },
-        paymentStatus: { $ne: 'paid' },
-        status: { $ne: 'cancelled' }
+        bookingId: booking._id,
+        status: { $nin: ['cancelled', 'canceled'] }
       });
       
       const restaurantCharges = restaurantOrders.reduce((total, order) => {
@@ -373,16 +368,12 @@ exports.getInvoice = async (req, res) => {
       }, 0);
       
       // Always update checkout with latest calculated charges
-      if (restaurantCharges !== checkout.restaurantCharges || roomServiceCharges !== checkout.roomServiceCharges) {
-        checkout.restaurantCharges = restaurantCharges;
-        checkout.roomServiceCharges = roomServiceCharges;
-        checkout.totalAmount = checkout.bookingCharges + restaurantCharges + roomServiceCharges;
-        await checkout.save();
-      }
-      
-      // Update the in-memory object
       checkout.restaurantCharges = restaurantCharges;
       checkout.roomServiceCharges = roomServiceCharges;
+      checkout.totalAmount = checkout.bookingCharges + restaurantCharges + roomServiceCharges;
+      
+      // Save updated charges to database
+      await checkout.save();
     } catch (error) {
       console.error('Error recalculating charges:', error);
     }
