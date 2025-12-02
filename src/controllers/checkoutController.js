@@ -304,13 +304,7 @@ exports.generateInvoice = async (req, res) => {
       return res.status(404).json({ message: 'Checkout not found' });
     }
     
-    // Generate invoice number if not exists
-    if (!checkout.invoiceNumber) {
-      checkout.invoiceNumber = await generateInvoiceNumber('monthly', true);
-      checkout.invoiceGenerated = true;
-      checkout.invoiceGeneratedAt = new Date();
-      await checkout.save();
-    }
+
     
     res.status(200).json({ 
       success: true, 
@@ -478,7 +472,7 @@ exports.getInvoice = async (req, res) => {
         if (restaurantAmount > 0) {
           items.push({
             date: booking?.checkInDate ? new Date(booking.checkInDate).toLocaleDateString('en-GB') : currentDate.toLocaleDateString('en-GB'),
-            particulars: `Restaurant Charges`,
+            particulars: `IN ROOM DINING`,
             pax: 1,
             declaredRate: restaurantAmount,
             hsn: 996311,
