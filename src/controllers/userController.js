@@ -40,7 +40,7 @@ exports.addUser = async (req, res) => {
 // Get all users
 exports.getAllUsers = async (req, res) => {
   try {
-    const users = await User.find({ status: 'active' })
+    const users = await User.find({})
       .select('-password')
       .sort({ createdAt: -1 });
 

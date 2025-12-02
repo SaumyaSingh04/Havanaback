@@ -72,4 +72,16 @@ const getProfile = async (req, res) => {
   });
 };
 
-module.exports = { register, login, getProfile };
+const checkStatus = async (req, res) => {
+  try {
+    const user = await User.findById(req.user._id);
+    if (!user || user.status !== 'active') {
+      return res.status(401).json({ error: 'User is inactive' });
+    }
+    res.json({ status: 'active' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+module.exports = { register, login, getProfile, checkStatus };
