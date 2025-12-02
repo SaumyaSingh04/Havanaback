@@ -37,7 +37,7 @@ exports.getAllOrders = async (req, res) => {
     const orders = await RestaurantOrder.find()
       .sort({ createdAt: -1 })
       .populate('items.itemId', 'name price')
-      .populate('bookingId', 'grcNo roomNumber guestName')
+      .populate('bookingId', 'grcNo roomNumber guestName invoiceNumber')
       .maxTimeMS(5000)
       .lean()
       .exec();
