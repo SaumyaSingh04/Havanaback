@@ -482,7 +482,7 @@ exports.checkoutBooking = async (req, res) => {
     await booking.save();
 
     // Create audit log for booking checkout
-    await createAuditLog('UPDATE', booking._id, req.user?.id, req.user?.role, originalData, booking.toObject(), req);
+    await createAuditLog('CHECKOUT', booking._id, req.user?.id, req.user?.role, originalData, booking.toObject(), req);
 
     // Handle multiple room numbers (comma-separated)
     const roomNumbers = booking.roomNumber.split(',').map(num => num.trim());
@@ -545,7 +545,7 @@ exports.deleteBooking = async (req, res) => {
     }
 
     // Create audit log for booking deletion
-    await createAuditLog('DELETE', booking._id, req.user?.id, req.user?.role, originalData, { isActive: false }, req);
+    await createAuditLog('CANCEL', booking._id, req.user?.id, req.user?.role, originalData, booking.toObject(), req);
 
     // Handle multiple room numbers (comma-separated)
     const roomNumbers = booking.roomNumber.split(',').map(num => num.trim());
@@ -819,7 +819,7 @@ exports.extendBooking = async (req, res) => {
     await booking.save();
 
     // Create audit log for booking extension
-    await createAuditLog('UPDATE', booking._id, req.user?.id, req.user?.role, originalData, booking.toObject(), req);
+    await createAuditLog('EXTEND', booking._id, req.user?.id, req.user?.role, originalData, booking.toObject(), req);
 
     res.json({
       success: true,
@@ -1166,7 +1166,7 @@ exports.amendBookingStay = async (req, res) => {
     await booking.save();
 
     // Create audit log for booking amendment
-    await createAuditLog('UPDATE', booking._id, req.user?.id, req.user?.role, originalData, booking.toObject(), req);
+    await createAuditLog('AMEND', booking._id, req.user?.id, req.user?.role, originalData, booking.toObject(), req);
 
     // Send notification (implement your notification service)
     try {
