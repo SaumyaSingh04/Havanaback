@@ -1,7 +1,7 @@
 const Booking = require("../models/Booking.js");
 const Category = require("../models/Category.js");
 const Room = require("../models/Room.js");
-const AuditLog = require('../models/AuditLog');
+const { getAuditLogModel } = require('../models/AuditLogModel');
 const mongoose = require('mongoose');
 const cloudinary = require('../utils/cloudinary');
 
@@ -11,23 +11,28 @@ const TAX_RATES = {
   sgstRate: 0.025  // 2.5%
 };
 
-// Helper function to create audit log
-const createAuditLog = async (action, recordId, userId, userRole, oldData, newData, req) => {
-  try {
-    await AuditLog.create({
-      action,
-      module: 'BOOKING',
-      recordId,
-      userId: userId || new mongoose.Types.ObjectId(),
-      userRole: userRole || 'SYSTEM',
-      oldData,
-      newData,
-      ipAddress: req?.ip || req?.connection?.remoteAddress,
-      userAgent: req?.get('User-Agent')
-    });
-  } catch (error) {
-    console.error('Audit log creation failed:', error);
-  }
+// Helper function to create audit log (non-blocking)
+const createAuditLog = (action, recordId, userId, userRole, oldData, newData, req) => {
+  // Run asynchronously without blocking main operation
+  setImmediate(async () => {
+    try {
+      const AuditLog = await getAuditLogModel();
+      await AuditLog.create({
+        action,
+        module: 'BOOKING',
+        recordId,
+        userId: userId || new mongoose.Types.ObjectId(),
+        userRole: userRole || 'SYSTEM',
+        oldData,
+        newData,
+        ipAddress: req?.ip || req?.connection?.remoteAddress,
+        userAgent: req?.get('User-Agent')
+      });
+      console.log(`✅ Audit log created: ${action} for booking ${recordId}`);
+    } catch (error) {
+      console.error('❌ Audit log creation failed:', error);
+    }
+  });
 };
 
 // Upload base64 image to Cloudinary
