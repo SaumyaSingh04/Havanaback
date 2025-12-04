@@ -4,8 +4,7 @@ const inventoryCategorySchema = new mongoose.Schema({
   name: { 
     type: String, 
     required: true,
-    unique: true,
-    enum: ['Housekeeping', 'Consumables', 'Kitchen', 'Linen', 'Maintenance', 'Electronics', 'Furniture', 'Safety', 'Office Supplies', 'Beverages', 'Food Items', 'Cleaning Supplies', 'Guest Amenities', 'Uniforms', 'Technology']
+    unique: true
   },
   description: { type: String, default: '' },
   isActive: { type: Boolean, default: true }
