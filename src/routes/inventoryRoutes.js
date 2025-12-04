@@ -6,29 +6,32 @@ const { auth, authorize } = require('../middleware/auth');
 // Get all inventory items (All roles)
 router.get('/items', auth, authorize(['ADMIN', 'GM', 'ACCOUNTS', 'STAFF', 'FRONT DESK']), inventoryController.getAllItems);
 
+// Get inventory item by ID (All roles)
+router.get('/items/:id', auth, authorize(['ADMIN', 'GM', 'ACCOUNTS', 'STAFF', 'FRONT DESK']), inventoryController.getItemById);
+
 // Create new inventory item (Admin, GM)
-router.post('/items', auth, authorize(['ADMIN', 'GM']), inventoryController.createItem);
+router.post('/items', auth, authorize(['ADMIN', 'GM','FRONT DESK']), inventoryController.createItem);
 
 // Update inventory item (Admin, GM, Staff)
-router.put('/items/:id', auth, authorize(['ADMIN', 'GM', 'STAFF']), inventoryController.updateItem);
+router.put('/items/:id', auth, authorize(['ADMIN', 'GM', 'STAFF','FRONT DESK']), inventoryController.updateItem);
 
 // Delete inventory item (Admin only)
 router.delete('/items/:id', auth, authorize('ADMIN'), inventoryController.deleteItem);
 
 // Get items by category (All roles)
-router.get('/category/:category', auth, authorize(['ADMIN', 'GM', 'ACCOUNTS', 'STAFF', 'FRONT DESK']), inventoryController.getByCategory);
+router.get('/category/:categoryId', auth, authorize(['ADMIN', 'GM', 'ACCOUNTS', 'STAFF', 'FRONT DESK']), inventoryController.getByCategory);
 
 // Stock in operation (Staff, Admin, GM)
-router.post('/items/:id/stock-in', auth, authorize(['STAFF', 'ADMIN', 'GM']), inventoryController.stockIn);
+router.post('/items/:id/stock-in', auth, authorize(['STAFF', 'ADMIN', 'GM','FRONT DESK']), inventoryController.stockIn);
 
 // Stock out operation (Staff, Admin, GM)
-router.post('/items/:id/stock-out', auth, authorize(['STAFF', 'ADMIN', 'GM']), inventoryController.stockOut);
+router.post('/items/:id/stock-out', auth, authorize(['STAFF', 'ADMIN', 'GM','FRONT DESK']), inventoryController.stockOut);
 
 // Update stock (Staff, Admin, GM)
-router.put('/items/:id/stock', auth, authorize(['STAFF', 'ADMIN', 'GM']), inventoryController.updateStock);
+router.put('/items/:id/stock', auth, authorize(['STAFF', 'ADMIN', 'GM','FRONT DESK']), inventoryController.updateStock);
 
 // Get stock movements (Admin, GM, Accounts)
-router.get('/movements', auth, authorize(['ADMIN', 'GM', 'ACCOUNTS']), inventoryController.getStockMovements);
+router.get('/movements', auth, authorize(['ADMIN', 'GM', 'ACCOUNTS','FRONT DESK']), inventoryController.getStockMovements);
 
 // Get low stock items (All roles)
 router.get('/low-stock', auth, authorize(['ADMIN', 'GM', 'ACCOUNTS', 'STAFF', 'FRONT DESK']), inventoryController.getLowStockItems);
