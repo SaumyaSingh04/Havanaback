@@ -6,6 +6,9 @@ const { auth, authorize } = require("../middleware/auth");
 // Get all vendors
 router.get("/all", auth, authorize(['ADMIN', 'STAFF','FRONT DESK']), vendorController.getAllVendors);
 
+// Get active vendors only (must be before /:id route)
+router.get("/active", auth, authorize(['ADMIN', 'STAFF', 'FRONT DESK']), vendorController.getActiveVendors);
+
 // Get single vendor by ID
 router.get("/get/:id", auth, authorize(['ADMIN', 'STAFF','FRONT DESK']), vendorController.getVendorById);
 
