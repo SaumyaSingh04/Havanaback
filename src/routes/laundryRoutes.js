@@ -11,5 +11,7 @@ router.put('/orders/:id/status', auth, authorize(['ADMIN', 'GM', 'STAFF', 'FRONT
 router.delete('/orders/:id', auth, authorize('ADMIN'), laundryController.deleteLaundryOrder);
 router.get('/room/:roomNumber', auth, authorize(['ADMIN', 'GM', 'ACCOUNTS', 'STAFF', 'FRONT DESK']), laundryController.getLaundryByRoom);
 router.get('/status/:status', auth, authorize(['ADMIN', 'GM', 'ACCOUNTS', 'STAFF', 'FRONT DESK']), laundryController.getLaundryByStatus);
+router.get('/vendor/:vendorId', auth, authorize(['ADMIN', 'GM', 'ACCOUNTS', 'STAFF', 'FRONT DESK']), laundryController.getLaundryByVendor);
+router.get('/booking/:bookingId', auth, authorize(['ADMIN', 'GM', 'ACCOUNTS', 'STAFF', 'FRONT DESK']), laundryController.getLaundryByBooking);
 
 module.exports = router;

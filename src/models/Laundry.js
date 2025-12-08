@@ -34,7 +34,7 @@ const laundrySchema = new mongoose.Schema({
         enum: ["pending", "picked_up", "ready", "delivered", "cancelled"],
         default: "pending",
       },
-      calculatedAmount: { type: Number, required: true },
+      calculatedAmount: { type: Number, default: 0 },
       damageReported: { type: Boolean, default: false },
       itemNotes: String,
     }
@@ -74,7 +74,7 @@ const laundrySchema = new mongoose.Schema({
 
   // 💰 Billing
   isBillable: { type: Boolean, default: true }, 
-  totalAmount: { type: Number, required: true },
+  totalAmount: { type: Number, default: 0 },
   isComplimentary: { type: Boolean, default: false },
   billStatus: {
     type: String,
@@ -94,30 +94,37 @@ const laundrySchema = new mongoose.Schema({
 }, { timestamps: true });
 
 
-// 🧮 Auto-calc total + auto-fill item name from LaundryRate
+// Auto-calc total + auto-fill item name from LaundryItem
 laundrySchema.pre("save", async function (next) {
   if (this.items?.length) {
     let total = 0;
     for (let item of this.items) {
       if (item.rateId) {
-        const rateDoc = await mongoose.model("LaundryRate").findById(item.rateId);
-        if (rateDoc) {
-          if (!item.itemName) item.itemName = rateDoc.itemName; 
-          if (!item.calculatedAmount) {
-            item.calculatedAmount = rateDoc.rate * item.quantity;
+        try {
+          const rateDoc = await mongoose.model("LaundryItem").findById(item.rateId);
+          if (rateDoc) {
+            if (!item.itemName) item.itemName = rateDoc.itemName;
+            item.calculatedAmount = rateDoc.rate * (item.quantity || 1);
           }
+        } catch (error) {
+          console.log('Error fetching rate:', error);
+          item.calculatedAmount = 0;
         }
       }
       total += item.calculatedAmount || 0;
     }
     this.totalAmount = total;
+  } else {
+    this.totalAmount = 0;
   }
   next();
 });
 
-// Populate vendor details
+// Populate vendor and booking details
 laundrySchema.pre(/^find/, function(next) {
-  this.populate('vendorId', 'vendorName vendorType phoneNumber UpiID');
+  this.populate('vendorId', 'vendorName phoneNumber UpiID')
+       .populate('bookingId', 'roomNumber guestName')
+       .populate('items.rateId', 'itemName rate category serviceType');
   next();
 });
 
