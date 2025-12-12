@@ -197,11 +197,11 @@ exports.exportTotalBookings = async (req, res) => {
   try {
     const { filter, startDate, endDate } = req.query;
     const dateFilter = getDateFilter(filter, startDate, endDate);
-    const bookings = await Booking.find({ deleted: { $ne: true }, ...dateFilter }).select('guestName phoneNumber checkInDate checkOutDate rate status createdAt');
+    const bookings = await Booking.find({ deleted: { $ne: true }, ...dateFilter }).select('name mobileNo checkInDate checkOutDate rate status createdAt');
     const csvData = [['Guest Name', 'Phone', 'Check In', 'Check Out', 'Rate', 'Status', 'Booking Date']];
     bookings.forEach(b => csvData.push([
-      b.guestName, 
-      b.phoneNumber, 
+      b.name, 
+      b.mobileNo, 
       formatDate(b.checkInDate), 
       formatDate(b.checkOutDate), 
       b.rate, 
@@ -218,11 +218,11 @@ exports.exportActiveBookings = async (req, res) => {
   try {
     const { filter, startDate, endDate } = req.query;
     const dateFilter = getDateFilter(filter, startDate, endDate);
-    const bookings = await Booking.find({ deleted: { $ne: true }, status: 'Checked In', ...dateFilter }).select('guestName phoneNumber checkInDate rate roomNumber');
+    const bookings = await Booking.find({ deleted: { $ne: true }, status: 'Checked In', ...dateFilter }).select('name mobileNo checkInDate rate roomNumber');
     const csvData = [['Guest Name', 'Phone', 'Check In Date', 'Rate', 'Room Number']];
     bookings.forEach(b => csvData.push([
-      b.guestName, 
-      b.phoneNumber, 
+      b.name, 
+      b.mobileNo, 
       formatDate(b.checkInDate), 
       b.rate, 
       b.roomNumber
@@ -237,11 +237,11 @@ exports.exportCancelledBookings = async (req, res) => {
   try {
     const { filter, startDate, endDate } = req.query;
     const dateFilter = getDateFilter(filter, startDate, endDate);
-    const bookings = await Booking.find({ deleted: { $ne: true }, status: 'Cancelled', ...dateFilter }).select('guestName phoneNumber checkInDate rate createdAt');
+    const bookings = await Booking.find({ deleted: { $ne: true }, status: 'Cancelled', ...dateFilter }).select('name mobileNo checkInDate rate createdAt');
     const csvData = [['Guest Name', 'Phone', 'Check In Date', 'Rate', 'Cancelled Date']];
     bookings.forEach(b => csvData.push([
-      b.guestName, 
-      b.phoneNumber, 
+      b.name, 
+      b.mobileNo, 
       formatDate(b.checkInDate), 
       b.rate, 
       formatDate(b.createdAt)
@@ -256,10 +256,10 @@ exports.exportRevenue = async (req, res) => {
   try {
     const { filter, startDate, endDate } = req.query;
     const dateFilter = getDateFilter(filter, startDate, endDate);
-    const bookings = await Booking.find({ deleted: { $ne: true }, ...dateFilter }).select('guestName rate paymentMode createdAt');
+    const bookings = await Booking.find({ deleted: { $ne: true }, ...dateFilter }).select('name rate paymentMode createdAt');
     const csvData = [['Guest Name', 'Amount', 'Payment Mode', 'Date']];
     bookings.forEach(b => csvData.push([
-      b.guestName, 
+      b.name, 
       b.rate, 
       b.paymentMode, 
       formatDate(b.createdAt)
@@ -274,10 +274,10 @@ exports.exportOnlinePayments = async (req, res) => {
   try {
     const { filter, startDate, endDate } = req.query;
     const dateFilter = getDateFilter(filter, startDate, endDate);
-    const bookings = await Booking.find({ deleted: { $ne: true }, paymentMode: /upi|online|card/i, ...dateFilter }).select('guestName rate paymentMode createdAt');
+    const bookings = await Booking.find({ deleted: { $ne: true }, paymentMode: /upi|online|card/i, ...dateFilter }).select('name rate paymentMode createdAt');
     const csvData = [['Guest Name', 'Amount', 'Payment Mode', 'Date']];
     bookings.forEach(b => csvData.push([
-      b.guestName, 
+      b.name, 
       b.rate, 
       b.paymentMode, 
       formatDate(b.createdAt)
@@ -292,10 +292,10 @@ exports.exportCashPayments = async (req, res) => {
   try {
     const { filter, startDate, endDate } = req.query;
     const dateFilter = getDateFilter(filter, startDate, endDate);
-    const bookings = await Booking.find({ deleted: { $ne: true }, paymentMode: /cash/i, ...dateFilter }).select('guestName rate paymentMode createdAt');
+    const bookings = await Booking.find({ deleted: { $ne: true }, paymentMode: /cash/i, ...dateFilter }).select('name rate paymentMode createdAt');
     const csvData = [['Guest Name', 'Amount', 'Payment Mode', 'Date']];
     bookings.forEach(b => csvData.push([
-      b.guestName, 
+      b.name, 
       b.rate, 
       b.paymentMode, 
       formatDate(b.createdAt)
