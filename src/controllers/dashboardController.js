@@ -1,5 +1,6 @@
 const Booking = require('../models/Booking');
 const RestaurantOrder = require('../models/RestaurantOrder');
+const RoomService = require('../models/RoomService');
 const Laundry = require('../models/Laundry');
 
 exports.getDashboardStats = async (req, res) => {
@@ -219,36 +220,58 @@ exports.exportTotalBookings = async (req, res) => {
       .lean();
     
     const csvData = [[
-      'Guest Name', 'Phone', 'Room Numbers', 'Check In', 'Check Out', 'Rate', 'Payment Status', 'Status', 'Booking Date'
+      'Guest Name', 'Phone', 'GRC No', 'Invoice Number', 'Room Numbers', 'Check In', 'Check Out', 'Rate', 'Restaurant Charges', 'Room Service Charges', 'Laundry Charges', 'Payment Status', 'Status', 'Booking Date'
     ]];
     
-    let totalAmount = 0;
-    let totalAdvance = 0;
-    let totalBalance = 0;
-    
-    bookings.forEach(b => {
-      const totalBookingAmount = (b.rate || 0);
-      totalAmount += totalBookingAmount;
-      totalAdvance += (b.totalAdvanceAmount || 0);
-      totalBalance += (b.balanceAmount || 0);
+    for (const b of bookings) {
+      // Get restaurant orders (table orders)
+      const restaurantOrders = await RestaurantOrder.find({
+        $or: [
+          { grcNo: b.grcNo },
+          { roomNumber: b.roomNumber },
+          { bookingId: b._id }
+        ],
+        tableNo: { $exists: true, $ne: null, $ne: '' }
+      }).lean();
+      
+      // Get room service orders
+      const roomServiceOrders = await RoomService.find({
+        $or: [
+          { roomNumber: b.roomNumber },
+          { bookingId: b._id }
+        ]
+      }).lean();
+      
+      // Get laundry charges
+      const laundryOrders = await Laundry.find({
+        $or: [
+          { grcNo: b.grcNo },
+          { roomNumber: b.roomNumber },
+          { bookingId: b._id }
+        ]
+      }).lean();
+      
+      const restaurantAmount = restaurantOrders.reduce((sum, order) => sum + (order.amount || 0), 0);
+      const roomServiceAmount = roomServiceOrders.reduce((sum, order) => sum + (order.totalAmount || 0), 0);
+      const laundryAmount = laundryOrders.reduce((sum, order) => sum + (order.totalAmount || 0), 0);
       
       csvData.push([
         b.name || '',
         b.mobileNo || '',
+        b.grcNo || '',
+        b.invoiceNumber || '',
         b.roomNumber || '',
         formatDate(b.checkInDate),
         formatDate(b.checkOutDate),
         b.rate || 0,
+        restaurantAmount || 0,
+        roomServiceAmount || 0,
+        laundryAmount || 0,
         b.paymentStatus || '',
         b.status || '',
         formatDate(b.createdAt)
       ]);
-    });
-    
-    // Add summary rows
-    csvData.push(['', '', '', '', '', '', '', '', '']);
-    csvData.push(['TOTAL BOOKINGS:', bookings.length, '', '', '', '', '', '', '']);
-    csvData.push(['TOTAL AMOUNT:', '', '', '', '', `Rs.${totalAmount}`, '', '', '']);
+    }
     
     sendCSV(res, csvData, 'total-bookings-detailed');
   } catch (error) {
@@ -260,25 +283,65 @@ exports.exportActiveBookings = async (req, res) => {
   try {
     const { filter, startDate, endDate } = req.query;
     const dateFilter = getDateFilter(filter, startDate, endDate);
-    const bookings = await Booking.find({ deleted: { $ne: true }, status: 'Checked In', ...dateFilter }).select('name mobileNo checkInDate checkOutDate rate roomNumber paymentStatus createdAt');
-    const csvData = [['Guest Name', 'Phone', 'Room Numbers', 'Check In', 'Check Out', 'Rate', 'Payment Status', 'Booking Date']];
-    let totalAmount = 0;
-    bookings.forEach(b => {
+    const bookings = await Booking.find({ deleted: { $ne: true }, status: 'Checked In', ...dateFilter })
+      .populate('categoryId')
+      .sort({ createdAt: -1 })
+      .lean();
+    
+    const csvData = [[
+      'Guest Name', 'Phone', 'GRC No', 'Invoice Number', 'Room Numbers', 'Check In', 'Check Out', 'Rate', 'Restaurant Charges', 'Room Service Charges', 'Laundry Charges', 'Payment Status', 'Status', 'Booking Date'
+    ]];
+    
+    for (const b of bookings) {
+      // Get restaurant orders (table orders)
+      const restaurantOrders = await RestaurantOrder.find({
+        $or: [
+          { grcNo: b.grcNo },
+          { roomNumber: b.roomNumber },
+          { bookingId: b._id }
+        ],
+        tableNo: { $exists: true, $ne: null, $ne: '' }
+      }).lean();
+      
+      // Get room service orders
+      const roomServiceOrders = await RoomService.find({
+        $or: [
+          { roomNumber: b.roomNumber },
+          { bookingId: b._id }
+        ]
+      }).lean();
+      
+      // Get laundry charges
+      const laundryOrders = await Laundry.find({
+        $or: [
+          { grcNo: b.grcNo },
+          { roomNumber: b.roomNumber },
+          { bookingId: b._id }
+        ]
+      }).lean();
+      
+      const restaurantAmount = restaurantOrders.reduce((sum, order) => sum + (order.amount || 0), 0);
+      const roomServiceAmount = roomServiceOrders.reduce((sum, order) => sum + (order.totalAmount || 0), 0);
+      const laundryAmount = laundryOrders.reduce((sum, order) => sum + (order.totalAmount || 0), 0);
+      
       csvData.push([
-        b.name, 
-        b.mobileNo, 
-        b.roomNumber,
+        b.name || '',
+        b.mobileNo || '',
+        b.grcNo || '',
+        b.invoiceNumber || '',
+        b.roomNumber || '',
         formatDate(b.checkInDate),
-        formatDate(b.checkOutDate), 
-        b.rate, 
-        b.paymentStatus,
+        formatDate(b.checkOutDate),
+        b.rate || 0,
+        restaurantAmount || 0,
+        roomServiceAmount || 0,
+        laundryAmount || 0,
+        b.paymentStatus || '',
+        b.status || '',
         formatDate(b.createdAt)
       ]);
-      totalAmount += (b.rate || 0);
-    });
-    // Add total row
-    csvData.push(['', '', '', '', '', '', '', '']);
-    csvData.push(['TOTAL ACTIVE BOOKINGS:', bookings.length, '', '', '', `Rs.${totalAmount}`, '', '']);
+    }
+    
     sendCSV(res, csvData, 'active-bookings');
   } catch (error) {
     res.status(500).json({ error: error.message });
